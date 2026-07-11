@@ -128,7 +128,7 @@ const Home = () => {
         <div className="relative h-[60vh] md:h-[80vh] w-full overflow-hidden">
           <img 
             src={`https://image.tmdb.org/t/p/original${movies[0].backdrop_path}`} 
-            className="w-full h-full object-cover opacity-50"
+            className="w-full h-full object-cover opacity-80"
             alt="Hero Backdrop"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent" />
