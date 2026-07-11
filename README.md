@@ -5,7 +5,7 @@ Cinescope is a high-performance, aesthetically pleasing web application built wi
 ---
 
 ## 🚀 Live Demo
-**[https://cinescope-tobiloba-niad.vercel.app]**
+**[https://cinescopemovienew.vercel.app/]**
 
 ---
 
