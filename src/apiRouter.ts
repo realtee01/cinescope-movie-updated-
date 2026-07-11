@@ -3,7 +3,7 @@ import express from 'express';
 const router = express.Router();
 
 const tmdbRequest = async (endpoint: string, queryParams: Record<string, string> = {}) => {
-  const token = process.env.TMDB_TOKEN;
+  const token = process.env.TMDB_TOKEN || process.env.VITE_TMDB_TOKEN;
   if (!token) {
     throw new Error('TMDB_TOKEN is not configured');
   }

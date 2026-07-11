@@ -5,6 +5,7 @@ import MovieCard from '../components/MovieCard';
 import SkeletonCard from '../components/SkeletonCard';
 import MovieModal from '../components/MovieModal';
 import SplitText from '../components/SplitText';
+import { tmdbRequest, tmdbRequestMultiPage } from '../utils/tmdb';
 
 const Home = () => {
   const [movies, setMovies] = useState([]);
@@ -35,8 +36,7 @@ const Home = () => {
   };
 
   useEffect(() => {
-    fetch(`/api/${mediaType === 'movie' ? 'movies' : 'tv'}/genres`)
-      .then(res => res.json())
+    tmdbRequest(`/genre/${mediaType}/list`)
       .then(data => {
         setGenres(data.genres || []);
         if (activeTab === 'discover' && data.genres && data.genres.length > 0) {
@@ -50,30 +50,22 @@ const Home = () => {
     try {
       setLoading(true);
       setError(null);
-      const mediaRoute = mediaType === 'movie' ? 'movies' : 'tv';
-      let endpoint = `/api/${mediaRoute}/trending`;
       
+      let data;
       if (searchQuery) {
-        endpoint = `/api/${mediaRoute}/search?query=${encodeURIComponent(searchQuery)}`;
+        data = await tmdbRequestMultiPage(`/search/${mediaType}`, { query: searchQuery });
       } else if (activeTab === 'discover' && selectedGenre) {
-        endpoint = `/api/${mediaRoute}/discover?with_genres=${selectedGenre}`;
+        data = await tmdbRequestMultiPage(`/discover/${mediaType}`, { with_genres: selectedGenre });
       } else if (activeTab === 'top-rated') {
-        endpoint = `/api/${mediaRoute}/top-rated`;
+        data = await tmdbRequestMultiPage(`/${mediaType}/top_rated`);
       } else if (activeTab === 'upcoming') {
-        endpoint = mediaType === 'movie' ? '/api/movies/upcoming' : '/api/tv/on-the-air';
+        data = await tmdbRequestMultiPage(mediaType === 'movie' ? '/movie/upcoming' : '/tv/on_the_air');
       } else if (activeTab === 'now-playing') {
-        endpoint = mediaType === 'movie' ? '/api/movies/now-playing' : '/api/tv/popular';
+        data = await tmdbRequestMultiPage(mediaType === 'movie' ? '/movie/now_playing' : '/tv/popular');
       } else {
-        endpoint = `/api/${mediaRoute}/trending`;
+        data = await tmdbRequestMultiPage(`/trending/${mediaType}/week`);
       }
 
-      const response = await fetch(endpoint);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to fetch movies');
-      }
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
       setMovies(data.results || []);
     } catch (err) {
       setError(err.message);
