@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Star, Clock, Calendar, PlayCircle, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { tmdbRequest } from '../utils/tmdb';
 
 const MovieModal = ({ movieData, onClose }) => {
   const [movie, setMovie] = useState(null);
@@ -13,7 +12,14 @@ const MovieModal = ({ movieData, onClose }) => {
     
     setLoading(true);
     const type = movieData.media_type || 'movie';
-    tmdbRequest(`/${type}/${movieData.id}`)
+    fetch(`/api/${type}/${movieData.id}`)
+      .then(async res => {
+        if (!res.ok) {
+           const errData = await res.json().catch(() => ({}));
+           throw new Error(errData.error || `HTTP error ${res.status}`);
+        }
+        return res.json();
+      })
       .then(data => {
         if (data.success === false || data.error) {
            throw new Error(data.error || "API returned error");

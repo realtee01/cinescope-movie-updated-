@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Star, Clock, Calendar, ArrowLeft, PlayCircle, Users } from 'lucide-react';
 import MovieCard from '../components/MovieCard';
-import { tmdbRequest } from '../utils/tmdb';
 
 const MovieDetail = () => {
   const { mediaType, id } = useParams();
@@ -17,10 +16,17 @@ const MovieDetail = () => {
     
     const fetchMovieDetails = async () => {
       try {
-        const [movieData, similarData] = await Promise.all([
-          tmdbRequest(`/${mediaType}/${id}`, { append_to_response: 'videos,credits,reviews' }),
-          tmdbRequest(`/${mediaType}/${id}/similar`)
+        const [movieRes, similarRes] = await Promise.all([
+          fetch(`/api/${mediaType}/${id}`),
+          fetch(`/api/${mediaType}/${id}/similar`)
         ]);
+
+        if (!movieRes.ok) {
+           throw new Error(`HTTP Error ${movieRes.status}`);
+        }
+
+        const movieData = await movieRes.json();
+        const similarData = await similarRes.json().catch(() => ({}));
 
         if (movieData.success === false || movieData.error) {
            throw new Error(movieData.error || "API returned error");
