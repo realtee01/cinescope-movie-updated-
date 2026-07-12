@@ -124,22 +124,28 @@ const Home = () => {
       </div>
 
       {/* Hero Section - Only shows on main trending page without search */}
-      {!searchQuery && activeTab === 'trending' && movies[0] && (
-        <div className="relative h-[60vh] md:h-[80vh] w-full overflow-hidden">
-          <img 
-            src={`https://image.tmdb.org/t/p/original${movies[0].backdrop_path}`} 
-            className="w-full h-full object-cover opacity-80"
-            alt="Hero Backdrop"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent" />
-          <div className="absolute bottom-10 left-6 md:left-12 max-w-2xl">
-            <h1 className="text-4xl md:text-7xl font-playfair font-black mb-4 leading-tight">{movies[0].title || movies[0].name}</h1>
-            <p className="text-white/70 line-clamp-3 mb-6 text-sm md:text-base">{movies[0].overview}</p>
-            <div className="flex gap-4 items-center">
-               <span className="bg-orange-500 text-white px-4 py-2 rounded-full font-semibold text-sm">Rating: {movies[0].vote_average?.toFixed(1)}</span>
-               <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm backdrop-blur-sm">Release: {movies[0].release_date || movies[0].first_air_date}</span>
-            </div>
-          </div>
+      {!searchQuery && activeTab === 'trending' && (
+        <div className="relative h-[60vh] md:h-[80vh] w-full overflow-hidden bg-[#0a0a0a]">
+          {movies[0] ? (
+            <>
+              <img 
+                src={`https://image.tmdb.org/t/p/original${movies[0].backdrop_path}`} 
+                className="w-full h-full object-cover opacity-80 animate-in fade-in duration-1000"
+                alt="Hero Backdrop"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent" />
+              <div className="absolute bottom-10 left-6 md:left-12 max-w-2xl animate-in slide-in-from-bottom-10 fade-in duration-1000">
+                <h1 className="text-4xl md:text-7xl font-playfair font-black mb-4 leading-tight">{movies[0].title || movies[0].name}</h1>
+                <p className="text-white/70 line-clamp-3 mb-6 text-sm md:text-base">{movies[0].overview}</p>
+                <div className="flex gap-4 items-center">
+                   <span className="bg-orange-500 text-white px-4 py-2 rounded-full font-semibold text-sm">Rating: {movies[0].vote_average?.toFixed(1)}</span>
+                   <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm backdrop-blur-sm">Release: {movies[0].release_date || movies[0].first_air_date}</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-white/5 animate-pulse" />
+          )}
         </div>
       )}
 

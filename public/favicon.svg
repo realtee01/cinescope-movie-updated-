@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="100" fill="#0a0a0a" />
+  
+  <!-- Left film strip holes -->
+  <path d="M 64 0 L 128 0 L 128 512 L 64 512 Z" fill="#111" />
+  <rect x="76" y="48" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="76" y="112" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="76" y="176" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="76" y="240" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="76" y="304" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="76" y="368" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="76" y="432" width="40" height="32" rx="8" fill="#f97316" />
+
+  <!-- Right film strip holes -->
+  <path d="M 384 0 L 448 0 L 448 512 L 384 512 Z" fill="#111" />
+  <rect x="396" y="48" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="396" y="112" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="396" y="176" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="396" y="240" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="396" y="304" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="396" y="368" width="40" height="32" rx="8" fill="#f97316" />
+  <rect x="396" y="432" width="40" height="32" rx="8" fill="#f97316" />
+
+  <!-- Center Play Button -->
+  <circle cx="256" cy="256" r="80" fill="none" stroke="#f97316" stroke-width="16" />
+  <polygon points="230,210 230,302 305,256" fill="#f97316" stroke="#f97316" stroke-width="8" stroke-linejoin="round" />
+</svg>
