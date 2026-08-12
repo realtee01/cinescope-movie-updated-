@@ -171,11 +171,11 @@ const Home = () => {
 
       {/* Hero Section - Only shows on main trending page without search */}
       {!searchQuery && activeTab === 'trending' && (
-        <div className="relative flex flex-col md:block w-full bg-[#0a0a0a] min-h-[60vh] md:min-h-0 md:h-[80vh] overflow-hidden">
+        <div className="relative w-full bg-[#0a0a0a] h-[75vh] md:h-[80vh] overflow-hidden">
           {movies[0] ? (
             <>
               {/* Media Container */}
-              <div className="relative w-full h-[40vh] md:h-full md:absolute md:inset-0 z-0 overflow-hidden">
+              <div className="absolute inset-0 z-0 overflow-hidden">
                 {showTrailer && heroMovieData?.videos?.results?.find(v => v.site === 'YouTube' && v.type === 'Trailer') ? (
                   <div className="absolute inset-0 z-0">
                      <iframe
@@ -187,7 +187,7 @@ const Home = () => {
                      ></iframe>
                      <button 
                        onClick={() => setIsHeroMuted(!isHeroMuted)}
-                       className="absolute bottom-4 right-4 md:bottom-10 md:right-12 z-30 p-2 md:p-3 rounded-full bg-black/50 border border-white/20 text-white hover:bg-white/10 transition pointer-events-auto backdrop-blur-md"
+                       className="absolute bottom-6 right-6 md:bottom-10 md:right-12 z-30 p-2 md:p-3 rounded-full bg-black/50 border border-white/20 text-white hover:bg-white/10 transition pointer-events-auto backdrop-blur-md"
                      >
                        {isHeroMuted ? <VolumeX size={20} className="w-4 h-4 md:w-5 md:h-5" /> : <Volume2 size={20} className="w-4 h-4 md:w-5 md:h-5" />}
                      </button>
@@ -199,14 +199,14 @@ const Home = () => {
                     alt="Hero Backdrop"
                   />
                 )}
-                {/* Gradient Overlay - Smooth transition to text section on mobile, traditional gradient on desktop */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 md:via-[#0a0a0a]/60 to-[#0a0a0a]/10 md:to-[#0a0a0a]/20 z-10 pointer-events-none" />
+                {/* Gradient Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/80 md:via-[#0a0a0a]/60 to-transparent md:to-[#0a0a0a]/20 z-10 pointer-events-none" />
               </div>
               
               {/* Text Container */}
-              <div className="relative md:absolute md:bottom-10 md:left-12 px-6 py-6 md:p-0 w-full max-w-2xl animate-in slide-in-from-bottom-10 fade-in duration-1000 z-20 pointer-events-none">
+              <div className="absolute bottom-8 left-6 right-6 md:bottom-10 md:left-12 md:right-auto px-0 w-auto max-w-2xl animate-in slide-in-from-bottom-10 fade-in duration-1000 z-20 pointer-events-none">
                 <h1 className="text-4xl md:text-7xl font-playfair font-black mb-4 leading-tight">{movies[0].title || movies[0].name}</h1>
-                <p className="text-white/70 line-clamp-4 md:line-clamp-3 mb-6 text-sm md:text-base">{movies[0].overview}</p>
+                <p className="text-white/70 line-clamp-3 mb-6 text-sm md:text-base">{movies[0].overview}</p>
                 <div className="flex gap-4 items-center pointer-events-auto">
                    <button 
                      onClick={() => setSelectedMovie({...movies[0], media_type: mediaType})}
