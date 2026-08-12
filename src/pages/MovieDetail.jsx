@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Clock, Calendar, ArrowLeft, PlayCircle, Users } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Star, Clock, Calendar, ArrowLeft, PlayCircle, Users, Tv } from 'lucide-react';
 import MovieCard from '../components/MovieCard';
 
 const MovieDetail = () => {
@@ -24,7 +24,6 @@ const MovieDetail = () => {
         if (!movieRes.ok) {
            throw new Error(`HTTP Error ${movieRes.status}`);
         }
-
         const movieData = await movieRes.json();
         const similarData = await similarRes.json().catch(() => ({}));
 
@@ -56,6 +55,8 @@ const MovieDetail = () => {
 
   const trailer = movie?.videos?.results?.find(v => v.site === 'YouTube' && v.type === 'Trailer') || movie?.videos?.results?.[0];
   const cast = movie?.credits?.cast?.slice(0, 6) || [];
+  const watchProviders = movie?.['watch/providers']?.results?.US;
+  const flatrate = watchProviders?.flatrate || [];
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white pb-20">
@@ -111,9 +112,49 @@ const MovieDetail = () => {
               <span className="flex items-center gap-2"><Calendar size={16} /> {movie?.release_date || movie?.first_air_date}</span>
             </div>
 
+            {flatrate.length > 0 && (
+              <div className="mb-8">
+                <h3 className="text-sm font-bold text-white/50 mb-3 uppercase tracking-wider">Available On</h3>
+                <div className="flex gap-3">
+                  {flatrate.map(provider => (
+                    <img 
+                      key={provider.provider_id} 
+                      src={`https://image.tmdb.org/t/p/original${provider.logo_path}`} 
+                      alt={provider.provider_name}
+                      title={provider.provider_name}
+                      className="w-10 h-10 rounded-xl"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <p className="text-xl md:text-2xl text-white/80 leading-relaxed mb-12 font-light">
               {movie?.overview}
             </p>
+
+            {mediaType === 'tv' && movie?.seasons?.length > 0 && (
+              <div className="mb-16">
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-3 border-b border-white/10 pb-4">
+                  <Tv className="text-orange-500" /> Seasons
+                </h3>
+                <div className="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-4 scrollbar-hide">
+                  {movie.seasons.filter(s => s.season_number > 0).map(season => (
+                    <div key={season.id} className="flex gap-4 bg-white/5 p-4 rounded-xl border border-white/10 items-center">
+                      {season.poster_path ? (
+                        <img src={`https://image.tmdb.org/t/p/w185${season.poster_path}`} className="w-16 rounded object-cover" alt={season.name} />
+                      ) : (
+                        <div className="w-16 h-24 bg-white/10 rounded flex items-center justify-center"><Tv size={24} className="text-white/30" /></div>
+                      )}
+                      <div>
+                        <h4 className="font-bold text-lg">{season.name}</h4>
+                        <p className="text-white/50 text-sm">{season.episode_count} Episodes &bull; {season.air_date}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {trailer && (
               <div className="mb-16">
@@ -140,17 +181,17 @@ const MovieDetail = () => {
                 </h3>
                 <div className="flex overflow-x-auto gap-6 pb-4 scrollbar-hide">
                   {cast.map(person => (
-                    <div key={person.id} className="flex flex-col items-center min-w-[120px] text-center">
-                      <div className="w-24 h-24 rounded-full overflow-hidden mb-3 border-2 border-white/10">
+                    <Link to={`/person/${person.id}`} key={person.id} className="flex flex-col items-center min-w-[120px] text-center group cursor-pointer">
+                      <div className="w-24 h-24 rounded-full overflow-hidden mb-3 border-2 border-white/10 group-hover:border-orange-500 transition-colors">
                         {person.profile_path ? (
-                          <img src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} alt={person.name} className="w-full h-full object-cover" />
+                          <img src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} alt={person.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                         ) : (
                           <div className="w-full h-full bg-white/5 flex items-center justify-center text-white/40"><Users size={32} /></div>
                         )}
                       </div>
-                      <p className="font-semibold text-sm line-clamp-1">{person.name}</p>
+                      <p className="font-semibold text-sm line-clamp-1 group-hover:text-orange-400 transition-colors">{person.name}</p>
                       <p className="text-white/50 text-xs mt-1 line-clamp-1">{person.character}</p>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </div>

@@ -174,7 +174,7 @@ router.get("/tv/search", async (req, res) => {
 router.get("/tv/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const data = await tmdbRequest(`/tv/${id}`, { append_to_response: 'videos,credits,reviews' });
+    const data = await tmdbRequest(`/tv/${id}`, { append_to_response: 'videos,credits,reviews,watch/providers' });
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message, success: false });
@@ -191,10 +191,20 @@ router.get("/tv/:id/similar", async (req, res) => {
   }
 });
 
+router.get("/tv/:id/season/:season_number", async (req, res) => {
+  try {
+    const { id, season_number } = req.params;
+    const data = await tmdbRequest(`/tv/${id}/season/${season_number}`);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message, success: false });
+  }
+});
+
 router.get(["/movies/:id", "/movie/:id"], async (req, res) => {
   try {
     const { id } = req.params;
-    const data = await tmdbRequest(`/movie/${id}`, { append_to_response: 'videos,credits,reviews' });
+    const data = await tmdbRequest(`/movie/${id}`, { append_to_response: 'videos,credits,reviews,watch/providers' });
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message, success: false });
@@ -208,6 +218,16 @@ router.get(["/movies/:id/similar", "/movie/:id/similar"], async (req, res) => {
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/person/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await tmdbRequest(`/person/${id}`, { append_to_response: 'movie_credits,tv_credits,images' });
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message, success: false });
   }
 });
 

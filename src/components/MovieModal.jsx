@@ -91,6 +91,22 @@ const MovieModal = ({ movieData, onClose }) => {
 
             {/* Details */}
             <div className="p-8">
+              {movie?.['watch/providers']?.results?.US?.flatrate?.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-xs font-bold text-white/50 mb-2 uppercase tracking-wider">Available On</h3>
+                  <div className="flex gap-2">
+                    {movie['watch/providers'].results.US.flatrate.map(provider => (
+                      <img 
+                        key={provider.provider_id} 
+                        src={`https://image.tmdb.org/t/p/original${provider.logo_path}`} 
+                        alt={provider.provider_name}
+                        title={provider.provider_name}
+                        className="w-8 h-8 rounded-lg"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
               <p className="text-lg text-white/80 leading-relaxed font-light mb-8">
                 {movie.overview}
               </p>

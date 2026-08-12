@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, Play, Volume2, VolumeX, Package } from 'lucide-react';
 import MovieCard from '../components/MovieCard';
 import SkeletonCard from '../components/SkeletonCard';
 import MovieModal from '../components/MovieModal';
@@ -18,8 +18,13 @@ const Home = () => {
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [searchInput, setSearchInput] = useState(searchQuery || '');
   const navigate = useNavigate();
-
   const [mediaType, setMediaType] = useState('movie'); // 'movie' or 'tv'
+  
+  // Premium Features State
+  const [heroMovieData, setHeroMovieData] = useState(null);
+  const [isHeroMuted, setIsHeroMuted] = useState(true);
+  const [showTrailer, setShowTrailer] = useState(false);
+  const [isSurprising, setIsSurprising] = useState(false);
 
   useEffect(() => {
     setSearchInput(searchQuery || '');
@@ -31,6 +36,24 @@ const Home = () => {
       navigate(`/?search=${encodeURIComponent(searchInput.trim())}`);
     } else {
       navigate('/');
+    }
+  };
+
+  const handleSurpriseMe = async () => {
+    setIsSurprising(true);
+    try {
+      const type = mediaType === 'movie' ? 'movies' : 'tv';
+      const randomPage = Math.floor(Math.random() * 50) + 1;
+      const res = await fetch(`/api/${type}/discover?page=${randomPage}`);
+      const data = await res.json();
+      if (data.results?.length > 0) {
+        const randomMovie = data.results[Math.floor(Math.random() * data.results.length)];
+        setSelectedMovie({ ...randomMovie, mediaType: mediaType });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSurprising(false);
     }
   };
 
@@ -92,6 +115,29 @@ const Home = () => {
     fetchMovies();
   }, [searchQuery, activeTab, selectedGenre, mediaType]);
 
+  useEffect(() => {
+    if (movies.length > 0 && !searchQuery && activeTab === 'trending') {
+      const heroMovieId = movies[0].id;
+      const type = mediaType === 'movie' ? 'movie' : 'tv'; // /movie/:id vs /tv/:id
+      fetch(`/api/${type}/${heroMovieId}`)
+        .then(res => res.json())
+        .then(data => {
+          setHeroMovieData(data);
+          setShowTrailer(false);
+          const timer = setTimeout(() => {
+            if (data?.videos?.results?.some(v => v.site === 'YouTube' && v.type === 'Trailer')) {
+              setShowTrailer(true);
+            }
+          }, 3000); // 3 seconds delay before playing trailer
+          return () => clearTimeout(timer);
+        })
+        .catch(console.error);
+    } else {
+      setHeroMovieData(null);
+      setShowTrailer(false);
+    }
+  }, [movies, mediaType, searchQuery, activeTab]);
+
   if (error) return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
       <p className="text-orange-500 font-bold">Error: {error}</p>
@@ -125,21 +171,50 @@ const Home = () => {
 
       {/* Hero Section - Only shows on main trending page without search */}
       {!searchQuery && activeTab === 'trending' && (
-        <div className="relative h-[60vh] md:h-[80vh] w-full overflow-hidden bg-[#0a0a0a]">
+        <div className="relative flex flex-col md:block w-full bg-[#0a0a0a] min-h-[60vh] md:min-h-0 md:h-[80vh] overflow-hidden">
           {movies[0] ? (
             <>
-              <img 
-                src={`https://image.tmdb.org/t/p/original${movies[0].backdrop_path}`} 
-                className="w-full h-full object-cover opacity-80 animate-in fade-in duration-1000"
-                alt="Hero Backdrop"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent" />
-              <div className="absolute bottom-10 left-6 md:left-12 max-w-2xl animate-in slide-in-from-bottom-10 fade-in duration-1000">
+              {/* Media Container */}
+              <div className="relative w-full h-[40vh] md:h-full md:absolute md:inset-0 z-0 overflow-hidden">
+                {showTrailer && heroMovieData?.videos?.results?.find(v => v.site === 'YouTube' && v.type === 'Trailer') ? (
+                  <div className="absolute inset-0 z-0">
+                     <iframe
+                       src={`https://www.youtube.com/embed/${heroMovieData.videos.results.find(v => v.site === 'YouTube' && v.type === 'Trailer').key}?autoplay=1&mute=${isHeroMuted ? 1 : 0}&controls=0&modestbranding=1&loop=1&playlist=${heroMovieData.videos.results.find(v => v.site === 'YouTube' && v.type === 'Trailer').key}`}
+                       title="Trailer"
+                       className="w-[300vw] h-[300vh] -ml-[100vw] -mt-[100vh] md:w-[150vw] md:h-[150vh] md:-ml-[25vw] md:-mt-[25vh] pointer-events-none"
+                       frameBorder="0"
+                       allow="autoplay; encrypted-media"
+                     ></iframe>
+                     <button 
+                       onClick={() => setIsHeroMuted(!isHeroMuted)}
+                       className="absolute bottom-4 right-4 md:bottom-10 md:right-12 z-30 p-2 md:p-3 rounded-full bg-black/50 border border-white/20 text-white hover:bg-white/10 transition pointer-events-auto backdrop-blur-md"
+                     >
+                       {isHeroMuted ? <VolumeX size={20} className="w-4 h-4 md:w-5 md:h-5" /> : <Volume2 size={20} className="w-4 h-4 md:w-5 md:h-5" />}
+                     </button>
+                  </div>
+                ) : (
+                  <img 
+                    src={`https://image.tmdb.org/t/p/original${movies[0].backdrop_path}`} 
+                    className="w-full h-full object-cover opacity-80 animate-in fade-in duration-1000"
+                    alt="Hero Backdrop"
+                  />
+                )}
+                {/* Gradient Overlay - Smooth transition to text section on mobile, traditional gradient on desktop */}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/40 md:via-[#0a0a0a]/60 to-[#0a0a0a]/10 md:to-[#0a0a0a]/20 z-10 pointer-events-none" />
+              </div>
+              
+              {/* Text Container */}
+              <div className="relative md:absolute md:bottom-10 md:left-12 px-6 py-6 md:p-0 w-full max-w-2xl animate-in slide-in-from-bottom-10 fade-in duration-1000 z-20 pointer-events-none">
                 <h1 className="text-4xl md:text-7xl font-playfair font-black mb-4 leading-tight">{movies[0].title || movies[0].name}</h1>
-                <p className="text-white/70 line-clamp-3 mb-6 text-sm md:text-base">{movies[0].overview}</p>
-                <div className="flex gap-4 items-center">
-                   <span className="bg-orange-500 text-white px-4 py-2 rounded-full font-semibold text-sm">Rating: {movies[0].vote_average?.toFixed(1)}</span>
-                   <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm backdrop-blur-sm">Release: {movies[0].release_date || movies[0].first_air_date}</span>
+                <p className="text-white/70 line-clamp-4 md:line-clamp-3 mb-6 text-sm md:text-base">{movies[0].overview}</p>
+                <div className="flex gap-4 items-center pointer-events-auto">
+                   <button 
+                     onClick={() => setSelectedMovie({...movies[0], media_type: mediaType})}
+                     className="bg-orange-500 hover:bg-orange-600 text-white px-6 md:px-8 py-3 rounded-full font-bold uppercase tracking-wide flex items-center gap-2 transition-transform hover:scale-105 shadow-[0_0_20px_rgba(249,115,22,0.3)]"
+                   >
+                     <Play size={20} fill="currentColor" /> Details
+                   </button>
+                   <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm backdrop-blur-sm border border-white/10 hidden md:inline-block">Rating: {movies[0].vote_average?.toFixed(1)}</span>
                 </div>
               </div>
             </>
@@ -182,6 +257,14 @@ const Home = () => {
               textAlign="center"
               tag="p"
             />
+            <button 
+              onClick={handleSurpriseMe}
+              disabled={isSurprising}
+              className="mt-8 bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-full font-bold uppercase tracking-widest text-sm flex items-center gap-3 transition backdrop-blur-md border border-white/20 hover:border-orange-500 hover:text-orange-400 group"
+            >
+              <Package size={18} className={isSurprising ? 'animate-spin' : 'group-hover:animate-spin'} />
+              {isSurprising ? 'Finding Magic...' : 'Surprise Me'}
+            </button>
           </div>
         )}
 
