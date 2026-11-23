@@ -39,26 +39,82 @@ const tmdbRequest = async (endpoint: string, queryParams: Record<string, string>
   throw lastError;
 };
 
-const tmdbRequestMultiPage = async (endpoint: string, queryParams: Record<string, string> = {}, pages = 2) => {
+const tmdbFetchBatch = async (
+  endpoint: string,
+  queryParams: Record<string, string> = {},
+  startPage = 1,
+  pageCount = 3
+) => {
+  const safeStart = Math.max(1, Math.min(500, startPage));
+  const safeCount = Math.max(1, Math.min(5, pageCount));
+  const pageNumbers = Array.from({ length: safeCount }, (_, i) => safeStart + i).filter(p => p <= 500);
+
+  const settled = await Promise.allSettled(
+    pageNumbers.map(page => tmdbRequest(endpoint, { ...queryParams, page: page.toString() }))
+  );
+
+  const seen = new Set<number>();
   const allResults: any[] = [];
   let baseData: any = null;
-  for (let page = 1; page <= pages; page++) {
-    const data = await tmdbRequest(endpoint, { ...queryParams, page: page.toString() });
-    if (!baseData) baseData = data;
-    if (data.results) {
-      allResults.push(...data.results);
+  let lastFetchedPage = safeStart;
+
+  for (let i = 0; i < settled.length; i++) {
+    const res = settled[i];
+    if (res.status === 'fulfilled' && res.value) {
+      const data = res.value;
+      if (!baseData) baseData = { ...data };
+      lastFetchedPage = pageNumbers[i];
+      if (Array.isArray(data.results)) {
+        for (const item of data.results) {
+          if (item?.id && !seen.has(item.id)) {
+            seen.add(item.id);
+            allResults.push(item);
+          }
+        }
+      }
     }
   }
-  if (baseData && allResults.length > 0) {
-    baseData.results = allResults;
+
+  if (!baseData) {
+    const firstError = settled.find(r => r.status === 'rejected') as PromiseRejectedResult | undefined;
+    throw firstError?.reason || new Error('Failed to fetch data from TMDB');
   }
-  return baseData;
+
+  const totalPages = Math.min(baseData.total_pages || 1, 500);
+  return {
+    ...baseData,
+    page: safeStart,
+    last_page_fetched: Math.min(lastFetchedPage, totalPages),
+    next_page: lastFetchedPage < totalPages ? lastFetchedPage + 1 : null,
+    total_pages: totalPages,
+    results: allResults,
+  };
 };
 
-// API routes
+const parsePagination = (req: express.Request, defaultCount = 3) => {
+  const page = parseInt(req.query.page as string, 10);
+  const count = parseInt(req.query.count as string, 10);
+  return {
+    startPage: Number.isFinite(page) && page > 0 ? page : 1,
+    pageCount: Number.isFinite(count) && count > 0 ? count : defaultCount,
+  };
+};
+
+// Movie Routes
 router.get("/movies/trending", async (req, res) => {
   try {
-    const data = await tmdbRequestMultiPage('/trending/movie/week');
+    const { startPage, pageCount } = parsePagination(req, 3);
+    const data = await tmdbFetchBatch('/trending/movie/week', {}, startPage, pageCount);
+    res.json(data);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/movies/popular", async (req, res) => {
+  try {
+    const { startPage, pageCount } = parsePagination(req, 3);
+    const data = await tmdbFetchBatch('/movie/popular', {}, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -67,7 +123,8 @@ router.get("/movies/trending", async (req, res) => {
 
 router.get("/movies/top-rated", async (req, res) => {
   try {
-    const data = await tmdbRequestMultiPage('/movie/top_rated');
+    const { startPage, pageCount } = parsePagination(req, 3);
+    const data = await tmdbFetchBatch('/movie/top_rated', {}, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -76,7 +133,8 @@ router.get("/movies/top-rated", async (req, res) => {
 
 router.get("/movies/upcoming", async (req, res) => {
   try {
-    const data = await tmdbRequestMultiPage('/movie/upcoming');
+    const { startPage, pageCount } = parsePagination(req, 3);
+    const data = await tmdbFetchBatch('/movie/upcoming', {}, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -85,7 +143,8 @@ router.get("/movies/upcoming", async (req, res) => {
 
 router.get("/movies/now-playing", async (req, res) => {
   try {
-    const data = await tmdbRequestMultiPage('/movie/now_playing');
+    const { startPage, pageCount } = parsePagination(req, 3);
+    const data = await tmdbFetchBatch('/movie/now_playing', {}, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -104,10 +163,8 @@ router.get("/movies/genres", async (req, res) => {
 router.get("/movies/discover", async (req, res) => {
   try {
     const with_genres = req.query.with_genres as string;
-    const page = req.query.page as string;
-    const data = page
-      ? await tmdbRequest('/discover/movie', { with_genres, page })
-      : await tmdbRequestMultiPage('/discover/movie', { with_genres });
+    const { startPage, pageCount } = parsePagination(req, req.query.single === 'true' ? 1 : 3);
+    const data = await tmdbFetchBatch('/discover/movie', { with_genres }, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -117,7 +174,8 @@ router.get("/movies/discover", async (req, res) => {
 router.get("/movies/search", async (req, res) => {
   try {
     const query = req.query.query as string;
-    const data = await tmdbRequestMultiPage('/search/movie', { query });
+    const { startPage, pageCount } = parsePagination(req, 2);
+    const data = await tmdbFetchBatch('/search/movie', { query }, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -127,7 +185,8 @@ router.get("/movies/search", async (req, res) => {
 // TV Routes
 router.get("/tv/trending", async (req, res) => {
   try {
-    const data = await tmdbRequestMultiPage('/trending/tv/week');
+    const { startPage, pageCount } = parsePagination(req, 3);
+    const data = await tmdbFetchBatch('/trending/tv/week', {}, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -136,7 +195,8 @@ router.get("/tv/trending", async (req, res) => {
 
 router.get("/tv/top-rated", async (req, res) => {
   try {
-    const data = await tmdbRequestMultiPage('/tv/top_rated');
+    const { startPage, pageCount } = parsePagination(req, 3);
+    const data = await tmdbFetchBatch('/tv/top_rated', {}, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -145,7 +205,8 @@ router.get("/tv/top-rated", async (req, res) => {
 
 router.get("/tv/popular", async (req, res) => {
   try {
-    const data = await tmdbRequestMultiPage('/tv/popular');
+    const { startPage, pageCount } = parsePagination(req, 3);
+    const data = await tmdbFetchBatch('/tv/popular', {}, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -154,7 +215,8 @@ router.get("/tv/popular", async (req, res) => {
 
 router.get("/tv/on-the-air", async (req, res) => {
   try {
-    const data = await tmdbRequestMultiPage('/tv/on_the_air');
+    const { startPage, pageCount } = parsePagination(req, 3);
+    const data = await tmdbFetchBatch('/tv/on_the_air', {}, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -173,10 +235,8 @@ router.get("/tv/genres", async (req, res) => {
 router.get("/tv/discover", async (req, res) => {
   try {
     const with_genres = req.query.with_genres as string;
-    const page = req.query.page as string;
-    const data = page
-      ? await tmdbRequest('/discover/tv', { with_genres, page })
-      : await tmdbRequestMultiPage('/discover/tv', { with_genres });
+    const { startPage, pageCount } = parsePagination(req, req.query.single === 'true' ? 1 : 3);
+    const data = await tmdbFetchBatch('/discover/tv', { with_genres }, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -186,7 +246,8 @@ router.get("/tv/discover", async (req, res) => {
 router.get("/tv/search", async (req, res) => {
   try {
     const query = req.query.query as string;
-    const data = await tmdbRequestMultiPage('/search/tv', { query });
+    const { startPage, pageCount } = parsePagination(req, 2);
+    const data = await tmdbFetchBatch('/search/tv', { query }, startPage, pageCount);
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

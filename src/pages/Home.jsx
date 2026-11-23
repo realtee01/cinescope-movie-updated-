@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search, Play, Volume2, VolumeX, Package } from 'lucide-react';
+import { Search, Play, Volume2, VolumeX, Package, Loader2 } from 'lucide-react';
 import MovieCard from '../components/MovieCard';
 import SkeletonCard from '../components/SkeletonCard';
 import MovieModal from '../components/MovieModal';
@@ -9,18 +9,22 @@ import SplitText from '../components/SplitText';
 const Home = () => {
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextPage, setNextPage] = useState(null);
+  const [totalResults, setTotalResults] = useState(0);
   const [error, setError] = useState(null);
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get('search');
-  const [activeTab, setActiveTab] = useState('trending'); // trending, top-rated, upcoming, now-playing, discover
+  const urlMediaType = searchParams.get('type');
+  const [activeTab, setActiveTab] = useState('trending');
   const [genres, setGenres] = useState([]);
   const [selectedGenre, setSelectedGenre] = useState('');
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [searchInput, setSearchInput] = useState(searchQuery || '');
   const navigate = useNavigate();
-  const [mediaType, setMediaType] = useState('movie'); // 'movie' or 'tv'
-  
-  // Premium Features State
+  const [mediaType, setMediaType] = useState(urlMediaType === 'tv' ? 'tv' : 'movie');
+
+  // Hero Trailer & Roulette State
   const [heroMovieData, setHeroMovieData] = useState(null);
   const [isHeroMuted, setIsHeroMuted] = useState(true);
   const [showTrailer, setShowTrailer] = useState(false);
@@ -29,6 +33,14 @@ const Home = () => {
   useEffect(() => {
     setSearchInput(searchQuery || '');
   }, [searchQuery]);
+
+  useEffect(() => {
+    if (urlMediaType === 'tv' || urlMediaType === 'movie') {
+      setMediaType(urlMediaType);
+      setActiveTab('trending');
+      setSelectedGenre('');
+    }
+  }, [urlMediaType]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -44,7 +56,7 @@ const Home = () => {
     try {
       const type = mediaType === 'movie' ? 'movies' : 'tv';
       const randomPage = Math.floor(Math.random() * 50) + 1;
-      const res = await fetch(`/api/${type}/discover?page=${randomPage}`);
+      const res = await fetch(`/api/${type}/discover?page=${randomPage}&single=true`);
       const data = await res.json();
       if (data.results?.length > 0) {
         const randomMovie = data.results[Math.floor(Math.random() * data.results.length)];
@@ -69,27 +81,44 @@ const Home = () => {
       .catch(console.error);
   }, [mediaType]);
 
-  const fetchMovies = async () => {
+  const buildEndpoint = useCallback((page = 1, count = 3) => {
+    const mediaRoute = mediaType === 'movie' ? 'movies' : 'tv';
+    if (searchQuery) {
+      return `/api/${mediaRoute}/search?query=${encodeURIComponent(searchQuery)}&page=${page}&count=${count}`;
+    }
+    if (activeTab === 'discover' && selectedGenre) {
+      return `/api/${mediaRoute}/discover?with_genres=${selectedGenre}&page=${page}&count=${count}`;
+    }
+    if (activeTab === 'popular') {
+      return `/api/${mediaRoute}/popular?page=${page}&count=${count}`;
+    }
+    if (activeTab === 'top-rated') {
+      return `/api/${mediaRoute}/top-rated?page=${page}&count=${count}`;
+    }
+    if (activeTab === 'upcoming') {
+      return mediaType === 'movie'
+        ? `/api/movies/upcoming?page=${page}&count=${count}`
+        : `/api/tv/on-the-air?page=${page}&count=${count}`;
+    }
+    if (activeTab === 'now-playing') {
+      return mediaType === 'movie'
+        ? `/api/movies/now-playing?page=${page}&count=${count}`
+        : `/api/tv/on-the-air?page=${page}&count=${count}`;
+    }
+    return `/api/${mediaRoute}/trending?page=${page}&count=${count}`;
+  }, [mediaType, searchQuery, activeTab, selectedGenre]);
+
+  const fetchMovies = useCallback(async (page = 1, append = false) => {
     try {
-      setLoading(true);
-      setError(null);
-      const mediaRoute = mediaType === 'movie' ? 'movies' : 'tv';
-      let endpoint = `/api/${mediaRoute}/trending`;
-      
-      if (searchQuery) {
-        endpoint = `/api/${mediaRoute}/search?query=${encodeURIComponent(searchQuery)}`;
-      } else if (activeTab === 'discover' && selectedGenre) {
-        endpoint = `/api/${mediaRoute}/discover?with_genres=${selectedGenre}`;
-      } else if (activeTab === 'top-rated') {
-        endpoint = `/api/${mediaRoute}/top-rated`;
-      } else if (activeTab === 'upcoming') {
-        endpoint = mediaType === 'movie' ? '/api/movies/upcoming' : '/api/tv/on-the-air';
-      } else if (activeTab === 'now-playing') {
-        endpoint = mediaType === 'movie' ? '/api/movies/now-playing' : '/api/tv/popular';
+      if (append) {
+        setLoadingMore(true);
       } else {
-        endpoint = `/api/${mediaRoute}/trending`;
+        setLoading(true);
+        setError(null);
       }
 
+      const count = append ? 2 : 3; // 60 titles initially, +40 per Load More click
+      const endpoint = buildEndpoint(page, count);
       const response = await fetch(endpoint);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -98,22 +127,40 @@ const Home = () => {
       const data = await response.json();
       if (data.error) throw new Error(data.error);
 
-      setMovies(data.results || []);
+      const incoming = data.results || [];
+      setMovies(prev => {
+        if (!append) return incoming;
+        const existingIds = new Set(prev.map(m => m.id));
+        const uniqueIncoming = incoming.filter(m => !existingIds.has(m.id));
+        return [...prev, ...uniqueIncoming];
+      });
+      setNextPage(data.next_page || null);
+      setTotalResults(data.total_results || incoming.length);
     } catch (err) {
-      setError(err.message);
+      if (!append) setError(err.message);
     } finally {
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
-  };
+  }, [buildEndpoint]);
 
   useEffect(() => {
     if (searchQuery) {
-       setActiveTab('');
+      setActiveTab('');
     } else if (!activeTab) {
-       setActiveTab('trending');
+      setActiveTab('trending');
     }
-    fetchMovies();
-  }, [searchQuery, activeTab, selectedGenre, mediaType]);
+    fetchMovies(1, false);
+  }, [searchQuery, activeTab, selectedGenre, mediaType, fetchMovies]);
+
+  const handleLoadMore = () => {
+    if (nextPage && !loadingMore) {
+      fetchMovies(nextPage, true);
+    }
+  };
 
   useEffect(() => {
     if (movies.length > 0 && !searchQuery && activeTab === 'trending') {
@@ -146,20 +193,21 @@ const Home = () => {
       setHeroMovieData(null);
       setShowTrailer(false);
     }
-  }, [movies, mediaType, searchQuery, activeTab]);
+  }, [movies[0]?.id, mediaType, searchQuery, activeTab]);
 
   if (error) return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
       <p className="text-orange-500 font-bold">Error: {error}</p>
-      <button onClick={fetchMovies} className="bg-orange-500 px-6 py-2 rounded-full text-white font-medium">Retry</button>
+      <button onClick={() => fetchMovies(1, false)} className="bg-orange-500 px-6 py-2 rounded-full text-white font-medium">Retry</button>
     </div>
   );
 
   const tabs = [
     { id: 'trending', label: 'Trending' },
-    { id: 'now-playing', label: 'Now Playing' },
+    { id: 'popular', label: 'Popular' },
+    { id: 'now-playing', label: mediaType === 'movie' ? 'Now Playing' : 'On The Air' },
     { id: 'top-rated', label: 'Top Rated' },
-    { id: 'upcoming', label: 'Upcoming' },
+    ...(mediaType === 'movie' ? [{ id: 'upcoming', label: 'Upcoming' }] : []),
     { id: 'discover', label: 'Genres' }
   ];
 
@@ -198,6 +246,7 @@ const Home = () => {
                      <button 
                        onClick={() => setIsHeroMuted(!isHeroMuted)}
                        className="absolute bottom-6 right-6 md:bottom-10 md:right-12 z-30 p-2 md:p-3 rounded-full bg-black/50 border border-white/20 text-white hover:bg-white/10 transition pointer-events-auto backdrop-blur-md"
+                       aria-label={isHeroMuted ? 'Unmute trailer' : 'Mute trailer'}
                      >
                        {isHeroMuted ? <VolumeX size={20} className="w-4 h-4 md:w-5 md:h-5" /> : <Volume2 size={20} className="w-4 h-4 md:w-5 md:h-5" />}
                      </button>
@@ -206,7 +255,7 @@ const Home = () => {
                   <img 
                     src={`https://image.tmdb.org/t/p/original${movies[0].backdrop_path}`} 
                     className="w-full h-full object-cover opacity-80 animate-in fade-in duration-1000"
-                    alt="Hero Backdrop"
+                    alt={movies[0].title || movies[0].name || 'Hero Backdrop'}
                   />
                 )}
                 {/* Gradient Overlay */}
@@ -224,7 +273,9 @@ const Home = () => {
                    >
                      <Play size={20} fill="currentColor" /> Details
                    </button>
-                   <span className="bg-white/10 text-white px-4 py-2 rounded-full text-sm backdrop-blur-sm border border-white/10 hidden md:inline-block">Rating: {movies[0].vote_average?.toFixed(1)}</span>
+                   <span className="text-white/70 text-sm font-medium hidden md:inline-block tabular-nums">
+                     Rating {movies[0].vote_average?.toFixed(1)} / 10
+                   </span>
                 </div>
               </div>
             </>
@@ -355,24 +406,59 @@ const Home = () => {
           </div>
         )}
 
-        <h2 className="text-2xl font-bold mb-8">
-          {searchQuery ? `Search Results for "${searchQuery}"` : 
-           activeTab === 'discover' ? `${genres.find(g => g.id.toString() === selectedGenre)?.name || ''} Movies` :
-           tabs.find(t => t.id === activeTab)?.label || 'Movies'}
-        </h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-4 mb-8">
+          <h2 className="text-2xl font-bold">
+            {searchQuery ? `Search Results for "${searchQuery}"` : 
+             activeTab === 'discover' ? `${genres.find(g => g.id.toString() === selectedGenre)?.name || ''} ${mediaType === 'movie' ? 'Movies' : 'TV Series'}` :
+             tabs.find(t => t.id === activeTab)?.label || 'Movies'}
+          </h2>
+          {!loading && movies.length > 0 && (
+            <p className="text-xs text-white/45 tabular-nums">
+              Showing {movies.length.toLocaleString()} {totalResults > movies.length ? `of ${totalResults.toLocaleString()}` : ''} titles
+            </p>
+          )}
+        </div>
         
         {movies.length === 0 && !loading ? (
           <div className="flex flex-col items-center justify-center py-20 opacity-60">
-            <p className="text-xl">No movies found.</p>
+            <p className="text-xl">No titles found.</p>
             <p className="text-sm mt-2">Try a different selection.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-            {loading 
-              ? Array(8).fill(0).map((_, i) => <SkeletonCard key={i} />) 
-              : movies.map((m, i) => <MovieCard key={`${m.id}-${i}`} movie={{...m, media_type: mediaType}} onClick={() => setSelectedMovie({...m, media_type: mediaType})} />)
-            }
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+              {loading 
+                ? Array(12).fill(0).map((_, i) => <SkeletonCard key={i} />) 
+                : movies.map((m, i) => (
+                    <MovieCard
+                      key={`${m.id}-${i}`}
+                      movie={{ ...m, media_type: mediaType }}
+                      onClick={() => setSelectedMovie({ ...m, media_type: mediaType })}
+                    />
+                  ))
+              }
+            </div>
+
+            {/* Load More Button */}
+            {!loading && nextPage && (
+              <div className="mt-14 flex flex-col items-center gap-3">
+                <button
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  className="min-h-[48px] px-10 py-3.5 rounded-full bg-white/[0.06] hover:bg-orange-500 text-white font-semibold tracking-wide text-sm border border-white/15 hover:border-orange-500 transition-all duration-200 flex items-center gap-3 disabled:opacity-60"
+                >
+                  {loadingMore ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Loading more {mediaType === 'movie' ? 'movies' : 'series'}...
+                    </>
+                  ) : (
+                    <>Load More {mediaType === 'movie' ? 'Movies' : 'TV Series'}</>
+                  )}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
