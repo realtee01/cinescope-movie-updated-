@@ -2,7 +2,7 @@ import express from 'express';
 
 const router = express.Router();
 
-const tmdbRequest = async (endpoint: string, queryParams: Record<string, string> = {}) => {
+const tmdbRequest = async (endpoint: string, queryParams: Record<string, string> = {}, retries = 2) => {
   const token = process.env.TMDB_TOKEN || process.env.VITE_TMDB_TOKEN;
   if (!token) {
     throw new Error('TMDB_TOKEN is not configured');
@@ -11,16 +11,32 @@ const tmdbRequest = async (endpoint: string, queryParams: Record<string, string>
   for (const [key, value] of Object.entries(queryParams)) {
     if (value) url.searchParams.append(key, value);
   }
-  const response = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      accept: 'application/json'
+
+  let lastError: any;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          accept: 'application/json'
+        }
+      });
+      if (!response.ok) {
+        if (response.status >= 500 && attempt < retries) {
+          await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+          continue;
+        }
+        throw new Error(`TMDB API Error: ${response.status} ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+      }
     }
-  });
-  if (!response.ok) {
-    throw new Error(`TMDB API Error: ${response.status} ${response.statusText}`);
   }
-  return response.json();
+  throw lastError;
 };
 
 const tmdbRequestMultiPage = async (endpoint: string, queryParams: Record<string, string> = {}, pages = 2) => {
@@ -88,7 +104,10 @@ router.get("/movies/genres", async (req, res) => {
 router.get("/movies/discover", async (req, res) => {
   try {
     const with_genres = req.query.with_genres as string;
-    const data = await tmdbRequestMultiPage('/discover/movie', { with_genres });
+    const page = req.query.page as string;
+    const data = page
+      ? await tmdbRequest('/discover/movie', { with_genres, page })
+      : await tmdbRequestMultiPage('/discover/movie', { with_genres });
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -154,7 +173,10 @@ router.get("/tv/genres", async (req, res) => {
 router.get("/tv/discover", async (req, res) => {
   try {
     const with_genres = req.query.with_genres as string;
-    const data = await tmdbRequestMultiPage('/discover/tv', { with_genres });
+    const page = req.query.page as string;
+    const data = page
+      ? await tmdbRequest('/discover/tv', { with_genres, page })
+      : await tmdbRequestMultiPage('/discover/tv', { with_genres });
     res.json(data);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

@@ -48,7 +48,7 @@ const Home = () => {
       const data = await res.json();
       if (data.results?.length > 0) {
         const randomMovie = data.results[Math.floor(Math.random() * data.results.length)];
-        setSelectedMovie({ ...randomMovie, mediaType: mediaType });
+        setSelectedMovie({ ...randomMovie, media_type: mediaType });
       }
     } catch (err) {
       console.error(err);
@@ -117,21 +117,31 @@ const Home = () => {
 
   useEffect(() => {
     if (movies.length > 0 && !searchQuery && activeTab === 'trending') {
+      const controller = new AbortController();
+      let timer;
       const heroMovieId = movies[0].id;
-      const type = mediaType === 'movie' ? 'movie' : 'tv'; // /movie/:id vs /tv/:id
-      fetch(`/api/${type}/${heroMovieId}`)
-        .then(res => res.json())
+      const type = mediaType === 'movie' ? 'movie' : 'tv';
+      fetch(`/api/${type}/${heroMovieId}`, { signal: controller.signal })
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
         .then(data => {
           setHeroMovieData(data);
           setShowTrailer(false);
-          const timer = setTimeout(() => {
+          timer = setTimeout(() => {
             if (data?.videos?.results?.some(v => v.site === 'YouTube' && v.type === 'Trailer')) {
               setShowTrailer(true);
             }
-          }, 3000); // 3 seconds delay before playing trailer
-          return () => clearTimeout(timer);
+          }, 3000);
         })
-        .catch(console.error);
+        .catch(err => {
+          if (err?.name !== 'AbortError') console.error(err);
+        });
+      return () => {
+        controller.abort();
+        if (timer) clearTimeout(timer);
+      };
     } else {
       setHeroMovieData(null);
       setShowTrailer(false);

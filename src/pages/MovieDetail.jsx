@@ -10,45 +10,93 @@ const MovieDetail = () => {
   const [similar, setSimilar] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
+
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
     setLoading(true);
     setMovie(null);
-    
+    setError(null);
+
+    const normalizedType = mediaType === 'tv' ? 'tv' : 'movie';
+
     const fetchMovieDetails = async () => {
-      try {
-        const [movieRes, similarRes] = await Promise.all([
-          fetch(`/api/${mediaType}/${id}`),
-          fetch(`/api/${mediaType}/${id}/similar`)
-        ]);
+      let lastErr = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const [movieRes, similarRes] = await Promise.all([
+            fetch(`/api/${normalizedType}/${id}`, { signal: controller.signal }),
+            fetch(`/api/${normalizedType}/${id}/similar`, { signal: controller.signal })
+          ]);
 
-        if (!movieRes.ok) {
-           throw new Error(`HTTP Error ${movieRes.status}`);
+          if (!movieRes.ok) {
+            throw new Error(`HTTP Error ${movieRes.status}`);
+          }
+          const movieData = await movieRes.json();
+          const similarData = await similarRes.json().catch(() => ({}));
+
+          if (movieData.success === false || movieData.error) {
+            throw new Error(movieData.error || 'API returned error');
+          }
+
+          if (active) {
+            setMovie(movieData);
+            setSimilar(similarData.results?.slice(0, 4) || []);
+            setLoading(false);
+          }
+          return;
+        } catch (err) {
+          if (err?.name === 'AbortError' || !active) return;
+          lastErr = err;
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+          }
         }
-        const movieData = await movieRes.json();
-        const similarData = await similarRes.json().catch(() => ({}));
+      }
 
-        if (movieData.success === false || movieData.error) {
-           throw new Error(movieData.error || "API returned error");
-        }
-
-        setMovie(movieData);
-        setSimilar(similarData.results?.slice(0, 4) || []);
-      } catch (err) {
-        console.error("Error fetching details:", err);
-        navigate('/');
-      } finally {
+      if (active) {
+        setError(lastErr?.message || 'Unable to load details right now.');
         setLoading(false);
       }
     };
 
     fetchMovieDetails();
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [id, mediaType, navigate]);
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [id, mediaType, retryCount]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (error || !movie) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-white/70 text-lg">Could not load title details.</p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setRetryCount((c) => c + 1)}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-full font-semibold transition"
+          >
+            Try Again
+          </button>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-full font-semibold transition"
+          >
+            Back Home
+          </button>
+        </div>
       </div>
     );
   }

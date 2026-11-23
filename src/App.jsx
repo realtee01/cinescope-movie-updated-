@@ -14,6 +14,7 @@ import Home from './pages/Home';
 import MovieDetail from './pages/MovieDetail';
 import Watchlist from './pages/Watchlist';
 import PersonDetail from './pages/PersonDetail';
+import Auth from './pages/Auth';
 import Splash from './components/Splash';
 
 function App() {
@@ -43,18 +44,8 @@ function App() {
                 <Route path="/:mediaType/:id" element={<MovieDetail />} />
                 <Route path="/person/:id" element={<PersonDetail />} />
                 <Route path="/watchlist" element={<Watchlist />} />
-                
-                {/* Optional: Future-proofing for your Login/Signup */}
-                <Route path="/login" element={
-                  <div className="h-[60vh] flex items-center justify-center italic text-gray-500">
-                    Login functionality coming soon...
-                  </div>
-                } />
-                <Route path="/signup" element={
-                  <div className="h-[60vh] flex items-center justify-center italic text-gray-500">
-                    Signup functionality coming soon...
-                  </div>
-                } />
+                <Route path="/login" element={<Auth mode="login" />} />
+                <Route path="/signup" element={<Auth mode="signup" />} />
               </Routes>
             </main>
             
